@@ -1,0 +1,214 @@
+<!--Le code est organisé en plusieurs parties : une partie HTML, une partie CSS et une partie JavaScript/jquery.
+La partie HTML contient la structure de la page, la partie CSS contient le style de la page et la partie 
+JavaScript contient le code qui permet de faire fonctionner l'auto-complétion et la recherche d'adresse.-->
+<!--le javascript est organisé en trois parties : une partie qui gère l'auto-complétion pour le code postal, 
+une partie qui gère l'auto-complétion pour la ville et une partie qui gère l'auto-complétion pour l'adresse.-->
+<!--en se basant a chaque fois sur la base de données d'une API répertoriant les adresses en france en fonction 
+du code postal, de la ville ou de la rue.-->
+
+<!--le code est commenté pour expliquer chaque partie-->
+
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Recherche d'adresse avec auto-complétion</title>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <!--insertion de la bibliothèque jQuery-->
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script> <!--insertion de la bibliothèque jQuery UI qui sert pour les modules tels que l'auto-complétion-->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"> <!--insertion de la feuille de style jQuery UI-->
+
+    <style> /*partie css pour rendre la page plus belle*/
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            background-image: url('https://www.competencemac.com/photo/art/grande/80735158-58227310.jpg?v=1717492389');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: #1d1d1f;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            min-height: 100vh;
+        }
+
+        h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #fff;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        input, button {
+            width: 90%;
+            max-width: 400px;
+            padding: 12px;
+            margin: 10px auto;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            display: block;
+            outline: none;
+        }
+
+        input {
+            background: rgba(255, 255, 255, 0.9); 
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button {
+            background: linear-gradient(90deg, #0071e3, #005bb5);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(90deg, #005bb5, #003e7e);
+            transform: scale(1.05);
+        }
+
+        #result {
+            list-style: none;
+            padding: 0;
+            max-width: 500px;
+            margin: 20px auto;
+            background: rgba(255, 255, 255, 0.8); 
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #result li {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            text-align: left;
+            color: #555;
+        }
+
+        @media (max-width: 600px) {
+            h2 {
+                font-size: 1.5rem;
+            }
+            input, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Rechercher une adresse</h2>
+
+    <input type="text" id="codePostal" placeholder="Code Postal"> <!--champ pour le code postal-->
+    <input type="text" id="ville" placeholder="Ville" disabled> <!--champ pour la ville-->
+    <input type="text" id="adresse" placeholder="Adresse" disabled> <!--champ pour l'adresse-->
+    <button id="search">Rechercher</button> <!--bouton pour lancer la recherche-->
+
+    <ul id="result"></ul> <!--liste pour afficher les résultats de la recherche-->
+
+    <script>
+        $(document).ready(function() { /*attendre que le document soit prêt avant d'exécuter le script*/
+            $("#codePostal").on("input", function() { /*repérer les changements dans le champ du code postal*/
+                let codePostal = $(this).val().trim(); /*récupérer la valeur du code postal*/
+                if (codePostal.length === 5) { /*vérifier si le code postal a 5 chiffres*/
+                    $.ajax({
+                        url: `https://geo.api.gouv.fr/communes?codePostal=${codePostal}&fields=nom`, /*requête pour récupérer les communes correspondant au code postal*/
+                        method: "GET",
+                        success: function(data) { /*si la requête réussit*/
+                            let villes = data.map(commune => commune.nom); /*récupérer les noms des communes*/
+                            $("#ville").removeAttr("disabled").autocomplete({ /*activer l'auto-complétion pour le champ de la ville*/
+                                source: villes /*source des suggestions*/
+                            });
+                        }
+                    });
+                } else {
+                    $("#ville").val("").attr("disabled", true); /*si le code postal n'est pas valide, vider le champ de la ville et le désactiver*/
+                    $("#adresse").val("").attr("disabled", true); /*vider le champ de l'adresse et le désactiver*/
+                }
+            });
+
+            $("#ville").on("change", function() { /*repérer les changements dans le champ de la ville*/
+                let ville = $(this).val().trim(); /*récupérer la valeur de la ville*/
+                let codePostal = $("#codePostal").val().trim(); /*récupérer la valeur du code postal*/
+                if (ville.length > 0) { /*si la ville est renseignée*/
+                    $.ajax({
+                        url: `https://api-adresse.data.gouv.fr/search/?q=${ville}&type=municipality`, /*requête pour récupérer le code de la ville*/
+                        method: "GET",
+                        success: function(data) { /*si la requête réussit*/
+                            if (data.features.length > 0) { 
+                                let cityCode = data.features[0].properties.citycode; /*récupérer le code de la ville*/
+                                $.ajax({
+                                    url: `https://api-adresse.data.gouv.fr/search/?q=rue&citycode=${cityCode}`, /*requête pour récupérer les rues de la ville*/
+                                    method: "GET",
+                                    success: function(streetData) { /*si la requête réussit*/
+                                        let rues = streetData.features.map(feature => feature.properties.name); /*récupérer les noms des rues*/
+                                        $("#adresse").removeAttr("disabled").autocomplete({ /*activer l'auto-complétion pour le champ de l'adresse*/
+                                            source: rues /*source des suggestions*/
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    });
+                } else {
+                    $("#adresse").val("").attr("disabled", true); /*vider le champ de l'adresse et le désactiver*/
+                }
+            });
+
+            $("#search").click(function() { /*lancer la recherche lorsque le bouton est cliqué*/
+                let codePostal = $("#codePostal").val().trim(); /*récupérer la valeur du code postal*/
+                let ville = $("#ville").val().trim(); /*récupérer la valeur de la ville*/
+                let adresse = $("#adresse").val().trim(); /*récupérer la valeur de l'adresse*/
+
+                let query = []; /*initialiser un tableau pour stocker les requêtes*/
+                if (adresse) query.push(adresse); /*ajouter l'adresse à la requête*/
+                if (ville) query.push(ville); /*ajouter la ville à la requête*/
+                if (codePostal) query.push(codePostal); /*ajouter le code postal à la requête*/
+
+                if (query.length > 0) {
+                    let url = `https://api-adresse.data.gouv.fr/search/?q=${query.join(",")}`; /*construire l'URL de la requête*/
+
+                    $.ajax({
+                        url: url,
+                        method: "GET", 
+                        success: function(data) { /*si la requête réussit*/
+                            $("#result").empty(); /*vider la liste des résultats*/
+                            if (data.features.length > 0) { /*si des résultats sont trouvés*/
+                                data.features.forEach(feature => { /*pour chaque résultat*/
+                                    let prop = feature.properties; /*récupérer les propriétés du résultat*/
+                                    $("#result").append(  /*ajouter le résultat à la liste*/
+                                        `<li>
+                                            <strong>${prop.label}</strong><br> 
+                                            Commune : ${prop.city} (${prop.postcode})<br> 
+                                            Département : ${prop.context}
+                                        </li><hr>`
+                                    );
+                                });
+                            } else { /*si aucun résultat n'est trouvé*/
+                                $("#result").append("<li>Aucune adresse trouvée.</li>");  /*afficher un message d'erreur*/
+                            }
+                        },
+                        error: function() { /*si la requête échoue*/
+                            $("#result").html("<li>Erreur lors de la récupération des données.</li>"); /*afficher un message d'erreur*/
+                        }
+                    });
+                } else { /*si aucun champ n'est renseigné*/
+                    $("#result").html("<li>Veuillez entrer au moins un champ.</li>"); /*afficher un message d'erreur*/
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
